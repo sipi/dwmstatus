@@ -75,8 +75,8 @@ getCpuUsage(int* cpu_percent)
   long int idle_time, other_time;
   char cpu_name[8]; 
   
-  static int **new_cpu_usage[CPU_NBR][4];
-  static int **old_cpu_usage[CPU_NBR][4];
+  static int new_cpu_usage[CPU_NBR][4];
+  static int old_cpu_usage[CPU_NBR][4];
 
   FILE *f;
   if(NULL == (f = fopen("/proc/stat", "r")))
