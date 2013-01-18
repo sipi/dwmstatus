@@ -25,20 +25,13 @@
 #include <linux/soundcard.h>
 */
 
+#define CPU_NBR 4
+
 //**********************************************************************
 // UTILS
 //**********************************************************************
 
-void  freeTable2d(int **tableau);
 char* getBar(int percent);
-int** makeTable2d(int first_dim_len, int second_dim_len);
-
-void 
-freeTable2d(int **tableau)
-{
-  free(tableau[0]);
-  free(tableau);
-}
 
 char *
 getBar(int percent)
@@ -60,23 +53,12 @@ getBar(int percent)
   return bar;
 }
 
-int**
-makeTable2d(int first_dim_len, int second_dim_len)
-{
-  int **tab = (int**) malloc(first_dim_len*sizeof(int*));
-  int *main_mem = (int*)malloc(first_dim_len*second_dim_len*sizeof(int));
-  for(int i = 0; i < first_dim_len; ++i)
-    tab[i] = main_mem + i*second_dim_len;
-  
-  return tab;
-}
-
 //**********************************************************************
 // MAIN FUNCTIONS
 //**********************************************************************
 
 int   getBattery();
-void  getCpuUsage(int *cpu_percent, const int cpu_nbr);
+void  getCpuUsage(int *cpu_percent);
 char* getDatetime();
 int   getEnergyStatus();
 float getFreq(char *file);
@@ -115,32 +97,22 @@ getBattery()
 }
 
 void
-getCpuUsage(int* cpu_percent, const int cpu_nbr)
+getCpuUsage(int* cpu_percent)
 {
   size_t len = 0;
   char *line = NULL;
   int i, percent;
   long int idle_time, other_time;
-  char cpu_name[cpu_nbr]; 
+  char cpu_name[8]; 
   
-  static int **new_cpu_usage = NULL;
-  if(new_cpu_usage == NULL)
-    new_cpu_usage = makeTable2d(cpu_nbr, 4);
-
-  static int **old_cpu_usage = NULL;
-  if(old_cpu_usage == NULL)
-    {
-      old_cpu_usage = makeTable2d(cpu_nbr, 4);
-      for(i = 0; i < cpu_nbr; ++i)
-        for(int j = 0; j < 4; ++j)
-          old_cpu_usage[i][j] = 0;
-    }
+  static int **new_cpu_usage[CPU_NBR][4];
+  static int **old_cpu_usage[CPU_NBR][4];
 
   FILE *f;
   if(NULL == (f = fopen("/proc/stat", "r")))
     return;
   
-  for(i = 0; i < cpu_nbr; ++i)
+  for(i = 0; i < CPU_NBR; ++i)
     {
       getline(&line,&len,f);
       sscanf(
@@ -373,7 +345,7 @@ main(void)
       datetime = getDateTime();
       bat0 = getBattery();
       vol = getVolume();
-      getCpuUsage(cpu_percent, 4);
+      getCpuUsage(cpu_percent);
       
       snprintf(
                status, 
