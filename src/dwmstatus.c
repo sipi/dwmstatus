@@ -71,7 +71,7 @@ getCpuUsage(int* cpu_percent)
 {
   size_t len = 0;
   char *line = NULL;
-  int i, percent;
+  int i;
   long int idle_time, other_time;
   char cpu_name[8]; 
   
@@ -223,7 +223,6 @@ getVolume()
 
   float vol = 0;
   long pmin, pmax, pvol;
-  FILE *f = NULL;
 
   /* Alsa {{{ */
   snd_mixer_t *handle;
@@ -273,9 +272,9 @@ setStatus(Display *dpy, char *str)
   XSync(dpy, False);
 }
 
-//**********************************************************************
-// MAIN
-//**********************************************************************
+/* *******************************************************************
+ * MAIN
+ ******************************************************************* */
 
 int 
 main(void) 
@@ -288,13 +287,7 @@ main(void)
   char *datetime;
   int bat0, temp, vol; 
   
-  const char CELSIUS_CHAR = 176;
-
-  /* ansi color
-   * Work with ansistatuscolors patch */
-  char *reset = "\e[0m";
-  char *redfg = "\e[38;5;196m";
-  char *greenfg = "\e[38;5;82m";
+  const char CELSIUS_CHAR = (char)176;
   
   if (!(dpy = XOpenDisplay(NULL))) {
     fprintf(stderr, "Cannot open display.\n");
