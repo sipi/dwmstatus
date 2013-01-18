@@ -27,36 +27,6 @@
 
 #define CPU_NBR 4
 
-//**********************************************************************
-// UTILS
-//**********************************************************************
-
-char* getBar(int percent);
-
-char *
-getBar(int percent)
-{
-  char *bar = (char*) malloc(8*sizeof(char));
-  int tmp = percent/20;
-  int i;
-  
-  bar[0] = '[';
-  for(i = 1; i <= tmp; ++i)
-    bar[i] = '|';
-  
-  for(; i <= 5; ++i)
-    bar[i] = ' ';
-
-  bar[6] = ']';
-  bar[7] = '\0';
-
-  return bar;
-}
-
-//**********************************************************************
-// MAIN FUNCTIONS
-//**********************************************************************
-
 int   getBattery();
 void  getCpuUsage(int *cpu_percent);
 char* getDatetime();
