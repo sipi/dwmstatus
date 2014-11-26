@@ -26,6 +26,8 @@
 */
 
 #define CPU_NBR 4
+#define BAT_NOW_FILE "/sys/class/power_supply/BAT0/charge_now"
+#define BAT_FULL_FILE "/sys/class/power_supply/BAT0/charge_full"
 
 int   getBattery();
 void  getCpuUsage(int *cpu_percent);
@@ -35,7 +37,7 @@ float getFreq(char *file);
 int   getTemperature();
 int   getVolume();
 void  setStatus(Display *dpy, char *str);
-
+int   getWifiPercent();
 
 int 
 getBattery()
@@ -46,7 +48,7 @@ getBattery()
   static int energy_full = -1;
   if(energy_full == -1)
     {
-      fd = fopen("/sys/class/power_supply/BAT0/energy_full", "r");
+      fd = fopen(BAT_FULL_FILE, "r");
       if(fd == NULL) {
         fprintf(stderr, "Error opening energy_full.\n");
         return -1;
@@ -55,7 +57,7 @@ getBattery()
       fclose(fd);
     }
   
-  fd = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
+  fd = fopen(BAT_NOW_FILE, "r");
   if(fd == NULL) {
     fprintf(stderr, "Error opening energy_now.\n");
     return -1;
@@ -200,7 +202,7 @@ int
 getTemperature()
 {
   int temp;
-  FILE *fd = fopen("/sys/class/hwmon/hwmon1/device/temp1_input", "r");
+  FILE *fd = fopen("/sys/class/hwmon/hwmon0/device/temp2_input", "r");
   if(fd == NULL) 
     {
       fprintf(stderr, "Error opening temp1_input.\n");
@@ -211,6 +213,24 @@ getTemperature()
   
   return temp / 1000;
 }
+
+int
+getWifiPercent()
+{
+	size_t len = 0;
+	int percent = 0;
+	char line[512] = {'\n'};
+	FILE *fd = fopen("/proc/net/wireless", "r");
+	if(fd == NULL)
+		{
+			fprintf(stderr, "Error opening wireless info");
+			return -1;
+		}
+	fscanf(fd, "%*[^\n]\n%*[^\n]\n%*s %*[0-9] %d", &percent);
+	fclose(fd);
+	return percent;
+}
+	
 
 int
 getVolume()
@@ -285,7 +305,7 @@ main(void)
   float cpu_freq[4];
   int cpu_percent[4];
   char *datetime;
-  int bat0, temp, vol; 
+  int bat0, temp, vol, wifi;
   
   const char CELSIUS_CHAR = (char)176;
   
@@ -299,26 +319,24 @@ main(void)
 
    while(1)
     {
-      cpu_freq[0] = getFreq("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq");
-      cpu_freq[1] = getFreq("/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq");
-      cpu_freq[2] = getFreq("/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq");
-      cpu_freq[3] = getFreq("/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq");
       
       temp = getTemperature();
       datetime = getDateTime();
       bat0 = getBattery();
       vol = getVolume();
       getCpuUsage(cpu_percent);
+      wifi = getWifiPercent();
       
       snprintf(
                status, 
                256, 
-               " [VOL %d%%] [CPU %d/%1.1f %d/%1.1f %d/%1.1f %d/%1.1f] [TEMP %d%cC] [BAT %d%%] %s ", 
+               " [VOL %d%%] [CPU %d %d %d %d] [W %d] [TEMP %d%cC] [BAT %d%%] %s ", 
                vol, 
-               cpu_percent[0], cpu_freq[0], 
-               cpu_percent[1], cpu_freq[1], 
-               cpu_percent[2], cpu_freq[2], 
-               cpu_percent[3], cpu_freq[3], 
+               cpu_percent[0], 
+               cpu_percent[1],  
+               cpu_percent[2],  
+               cpu_percent[3],  
+               wifi,
                temp, CELSIUS_CHAR, 
                bat0, datetime
                );

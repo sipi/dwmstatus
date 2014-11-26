@@ -9,7 +9,7 @@ DEBUG_FLAGS= -DDEBUG=1 -W -Wall -ansi -pedantic -g
 # Other flags
 FLAGS= -std=c99
 
-
+include config.mk
 #INCLUDE_DIR=include
 SOURCE_DIR=src
 
@@ -33,6 +33,12 @@ ${PROG_NAME}: ${OBJS}
 
 %.o: ${SOURCE_DIR}/%${EXT}
 	${CC} -o $@ -c $< ${FLAGS}
+
+install: ${PROG_NAME}
+	@echo installing executable file to ${PREFIX}/bin
+	@mkdir -p ${PREFIX}/bin
+	@cp -f ${PROG_NAME} ${PREFIX}/bin/${PROG_NAME}
+	@chmod 755 ${PREFIX}/bin/${PROG_NAME}
 
 mrproper:
 	rm -rf *.o *~ \#*\# ${PROG_NAME}
