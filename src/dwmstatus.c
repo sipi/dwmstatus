@@ -1,9 +1,6 @@
 /** ********************************************************************
  * DWM STATUS by <clement@6pi.fr>
  * 
- * This program is a patchwork of functions, I haven't all rights on 
- * this code. Thank you to the various authors.
- * 
  * Compile with:
  * gcc -Wall -pedantic -std=c99 -lX11 -lasound dwmstatus.c
  * 
@@ -29,15 +26,90 @@
 #define BAT_NOW_FILE "/sys/class/power_supply/BAT0/charge_now"
 #define BAT_FULL_FILE "/sys/class/power_supply/BAT0/charge_full"
 
+#define TEMP_SENSOR_FILE "/sys/class/hwmon/hwmon1/temp1_input"
+
 int   getBattery();
 void  getCpuUsage(int *cpu_percent);
-char* getDatetime();
+char* getDateTime();
 int   getEnergyStatus();
 float getFreq(char *file);
 int   getTemperature();
 int   getVolume();
 void  setStatus(Display *dpy, char *str);
 int   getWifiPercent();
+
+
+/* *******************************************************************
+ * MAIN
+ ******************************************************************* */
+
+int 
+main(void) 
+{
+  Display *dpy;
+  char *status;
+  
+  int cpu_percent[CPU_NBR];
+  char *datetime;
+  int bat0, temp, vol, wifi;
+  
+  const char CELSIUS_CHAR = (char)176;
+  
+  if (!(dpy = XOpenDisplay(NULL))) {
+    fprintf(stderr, "Cannot open display.\n");
+    return EXIT_FAILURE;
+  }
+
+  if((status = malloc(256)) == NULL)
+    return EXIT_FAILURE;
+
+   while(1)
+    {
+      
+      temp = getTemperature();
+      datetime = getDateTime();
+      bat0 = getBattery();
+      vol = getVolume();
+      getCpuUsage(cpu_percent);
+      wifi = getWifiPercent();
+      
+      snprintf(
+               status, 
+               256, 
+               " [VOL %d%%] [CPU %d %d %d %d] [W %d] [TEMP %d%cC] [BAT %d%%] %s ", 
+               vol, 
+               cpu_percent[0], 
+               cpu_percent[1],  
+               cpu_percent[2],  
+               cpu_percent[3],  
+               wifi,
+               temp, CELSIUS_CHAR, 
+               bat0, datetime
+               );
+      
+      free(datetime);
+      setStatus(dpy, status);
+      sleep(3);
+    }
+   
+  /* USELESS
+  free(status);
+  XCloseDisplay(dpy);
+  
+  return EXIT_SUCESS;
+  */
+}
+
+/* *******************************************************************
+ * FUNCTIONS
+ ******************************************************************* */
+
+void 
+setStatus(Display *dpy, char *str) 
+{
+  XStoreName(dpy, DefaultRootWindow(dpy), str);
+  XSync(dpy, False);
+}
 
 int 
 getBattery()
@@ -122,6 +194,29 @@ getCpuUsage(int* cpu_percent)
     fclose(f);
 }
 
+float 
+getFreq(char *file)
+{
+  FILE *fd;
+  char *freq; 
+  float ret;
+  
+  freq = malloc(10);
+  fd = fopen(file, "r");
+  if(fd == NULL)
+    {
+      fprintf(stderr, "Cannot open '%s' for reading.\n", file);
+      exit(1);
+    }
+
+  fgets(freq, 10, fd);
+  fclose(fd);
+
+  ret = atof(freq)/1000000;
+  free(freq);
+  return ret;
+}
+
 char *
 getDateTime() 
 {
@@ -175,39 +270,16 @@ getEnergyStatus()
   return 1;
 }
 
-float 
-getFreq(char *file)
-{
-  FILE *fd;
-  char *freq; 
-  float ret;
-  
-  freq = malloc(10);
-  fd = fopen(file, "r");
-  if(fd == NULL)
-    {
-      fprintf(stderr, "Cannot open '%s' for reading.\n", file);
-      exit(1);
-    }
-
-  fgets(freq, 10, fd);
-  fclose(fd);
-
-  ret = atof(freq)/1000000;
-  free(freq);
-  return ret;
-}
-
 int
 getTemperature()
 {
   int temp;
-  FILE *fd = fopen("/sys/class/hwmon/hwmon0/device/temp2_input", "r");
+  FILE *fd = fopen(TEMP_SENSOR_FILE, "r");
   if(fd == NULL) 
-    {
-      fprintf(stderr, "Error opening temp1_input.\n");
-      return -1;
-    }
+	  {
+		  fprintf(stderr, "Error opening temp1_input.\n");
+		  return -1;
+	  }
   fscanf(fd, "%d", &temp);
   fclose(fd);
   
@@ -283,74 +355,5 @@ getVolume()
      }}} */
 
   return vol;
-}
-
-void 
-setStatus(Display *dpy, char *str) 
-{
-  XStoreName(dpy, DefaultRootWindow(dpy), str);
-  XSync(dpy, False);
-}
-
-/* *******************************************************************
- * MAIN
- ******************************************************************* */
-
-int 
-main(void) 
-{
-  Display *dpy;
-  char *status;
-  
-  float cpu_freq[4];
-  int cpu_percent[4];
-  char *datetime;
-  int bat0, temp, vol, wifi;
-  
-  const char CELSIUS_CHAR = (char)176;
-  
-  if (!(dpy = XOpenDisplay(NULL))) {
-    fprintf(stderr, "Cannot open display.\n");
-    return EXIT_FAILURE;
-  }
-
-  if((status = malloc(256)) == NULL)
-    return EXIT_FAILURE;
-
-   while(1)
-    {
-      
-      temp = getTemperature();
-      datetime = getDateTime();
-      bat0 = getBattery();
-      vol = getVolume();
-      getCpuUsage(cpu_percent);
-      wifi = getWifiPercent();
-      
-      snprintf(
-               status, 
-               256, 
-               " [VOL %d%%] [CPU %d %d %d %d] [W %d] [TEMP %d%cC] [BAT %d%%] %s ", 
-               vol, 
-               cpu_percent[0], 
-               cpu_percent[1],  
-               cpu_percent[2],  
-               cpu_percent[3],  
-               wifi,
-               temp, CELSIUS_CHAR, 
-               bat0, datetime
-               );
-      
-      free(datetime);
-      setStatus(dpy, status);
-      sleep(3);
-    }
-   
-  /* USELESS
-  free(status);
-  XCloseDisplay(dpy);
-  
-  return EXIT_SUCESS;
-  */
 }
 
