@@ -76,7 +76,7 @@ main(void)
       snprintf(
                status, 
                256, 
-               " [VOL %d%%] [CPU %d %d %d %d] [W %d] [TEMP %d%cC] [BAT %d%%] %s ", 
+               " [VOL %d%%] [CPU %d %d %d %d] [W %d] [^c#FF0000^TEMP %d%cC^c#FFFFFF^] [BAT %d%%] %s ", 
                vol, 
                cpu_percent[0], 
                cpu_percent[1],  
@@ -89,7 +89,7 @@ main(void)
       
       free(datetime);
       setStatus(dpy, status);
-      sleep(3);
+      sleep(1);
     }
    
   /* USELESS
