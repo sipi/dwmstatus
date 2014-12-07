@@ -23,6 +23,7 @@
 */
 
 #define CPU_NBR 4
+#define BAR_HEIGHT 15
 #define BAT_NOW_FILE "/sys/class/power_supply/BAT0/charge_now"
 #define BAT_FULL_FILE "/sys/class/power_supply/BAT0/charge_full"
 
@@ -38,6 +39,11 @@ int   getVolume();
 void  setStatus(Display *dpy, char *str);
 int   getWifiPercent();
 
+char* vBar(int percent, int w, int h, char* fg_color, char* bg_color);
+int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color);
+int hBarBordered(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color, char *border_color);
+int getBatteryBar(char *string, size_t size, int w, int h, char *fg_color, char *bg_color, char *border_color);
+
 
 /* *******************************************************************
  * MAIN
@@ -46,12 +52,19 @@ int   getWifiPercent();
 int 
 main(void) 
 {
+  const int MSIZE = 1024;
   Display *dpy;
   char *status;
   
   int cpu_percent[CPU_NBR];
   char *datetime;
-  int bat0, temp, vol, wifi;
+  int temp, vol, wifi;
+  char *cpu_bar[CPU_NBR];
+
+  char *fg_color = "#EEEEEE";
+  char *bg_color = "#222222";
+
+  char bat0[256];
   
   const char CELSIUS_CHAR = (char)176;
   
@@ -60,7 +73,8 @@ main(void)
     return EXIT_FAILURE;
   }
 
-  if((status = malloc(256)) == NULL)
+  status = (char*) malloc(sizeof(char)*MSIZE);
+  if(!status)
     return EXIT_FAILURE;
 
    while(1)
@@ -68,26 +82,35 @@ main(void)
       
       temp = getTemperature();
       datetime = getDateTime();
-      bat0 = getBattery();
+      getBatteryBar(bat0, 256, 30, 13, "#00FF00", "#444444", "#FFFFFF");
       vol = getVolume();
       getCpuUsage(cpu_percent);
       wifi = getWifiPercent();
+      for(int i = 0; i < CPU_NBR; ++i)
+	      cpu_bar[i] = vBar(cpu_percent[i], 2, 13, "#FF0000", "#444444");
       
-      snprintf(
+      int ret = snprintf(
                status, 
-               256, 
-               " [VOL %d%%] [CPU %d %d %d %d] [W %d] [^c#FF0000^TEMP %d%cC^c#FFFFFF^] [BAT %d%%] %s ", 
+               MSIZE, 
+               "^c%s^ [VOL %d%%] [CPU^f1^%s^f4^%s^f4^%s^f4^%s^f3^^c%s^] [W %d] [TEMP %d%cC] %s^c%s^ %s ", 
+               fg_color,
                vol, 
-               cpu_percent[0], 
-               cpu_percent[1],  
-               cpu_percent[2],  
-               cpu_percent[3],  
+               cpu_bar[0],
+               cpu_bar[1],  
+               cpu_bar[2],  
+               cpu_bar[3],  
+               fg_color,
                wifi,
                temp, CELSIUS_CHAR, 
-               bat0, datetime
+               bat0, fg_color, datetime
                );
-      
+      if(ret >= MSIZE)
+	fprintf(stderr, "error: buffer too small %d/%d\n", MSIZE, ret);
+
       free(datetime);
+      for(int i = 0; i < CPU_NBR; ++i)
+	      free(cpu_bar[i]);
+
       setStatus(dpy, status);
       sleep(1);
     }
@@ -104,11 +127,56 @@ main(void)
  * FUNCTIONS
  ******************************************************************* */
 
+char* vBar(int percent, int w, int h, char* fg_color, char* bg_color) 
+{
+  char *value;
+  if((value = (char*) malloc(sizeof(char)*128)) == NULL)
+    {
+      fprintf(stderr, "Cannot allocate memory for buf.\n");
+      exit(1);
+    }
+  char* format = "^c%s^^r0,%d,%d,%d^^c%s^^r0,%d,%d,%d^";
+
+  int bar_height = (percent*h)/100;
+  int y = (BAR_HEIGHT - h)/2;
+  snprintf(value, 128, format, bg_color, y, w, h, fg_color, y + h-bar_height, w, bar_height);
+  return value; 
+}
+
+int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color)
+{
+  char *format = "^c%s^^r0,%d,%d,%d^^c%s^^r%d,%d,%d,%d^";
+  int bar_width = (percent*w)/100;
+
+  int y = (BAR_HEIGHT - h)/2;
+  return snprintf(string, size, format, bg_color, y, w, h, fg_color, w - bar_width, y, bar_width, h);
+}
+
+int hBarBordered(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color, char *border_color)
+{
+	char tmp[128];
+	hBar(tmp, 128, percent, w - 2, h -2, fg_color, bg_color);
+	int y = (BAR_HEIGHT - h)/2;
+	char *format = "^c%s^^r0,%d,%d,%d^^f1^%s";
+	return snprintf(string, size, format, border_color, y, w, h, tmp);
+}
+
 void 
 setStatus(Display *dpy, char *str) 
 {
   XStoreName(dpy, DefaultRootWindow(dpy), str);
   XSync(dpy, False);
+}
+
+int getBatteryBar(char *string, size_t size, int w, int h, char *fg_color, char *bg_color, char *border_color) 
+{
+	int percent = getBattery();
+	char tmp[128];
+	hBarBordered(tmp, 128, percent, w -2, h, fg_color, bg_color, border_color);
+
+  char *format = "^c%s^^r0,%d,%d,%d^^f2^%s^f%d^";
+  int y = (BAR_HEIGHT - 5)/2;
+  return snprintf(string, size, format, border_color, y, 2, 5, tmp, w-2);
 }
 
 int 
@@ -201,7 +269,7 @@ getFreq(char *file)
   char *freq; 
   float ret;
   
-  freq = malloc(10);
+  freq = (char*) malloc(10);
   fd = fopen(file, "r");
   if(fd == NULL)
     {
@@ -224,7 +292,7 @@ getDateTime()
   time_t result;
   struct tm *resulttm;
   
-  if((buf = malloc(sizeof(char)*65)) == NULL)
+  if((buf = (char*) malloc(sizeof(char)*65)) == NULL)
     {
       fprintf(stderr, "Cannot allocate memory for buf.\n");
       exit(1);
@@ -238,7 +306,7 @@ getDateTime()
       exit(1);
     }
   
-  if(!strftime(buf, sizeof(char)*65-1, "%a %b %d %H:%M", resulttm))
+  if(!strftime(buf, sizeof(char)*65-1, "[%a %b %d] [%H:%M]", resulttm))
     {
       fprintf(stderr, "strftime is 0.\n");
       exit(1);
@@ -289,9 +357,9 @@ getTemperature()
 int
 getWifiPercent()
 {
-	size_t len = 0;
+	//size_t len = 0;
 	int percent = 0;
-	char line[512] = {'\n'};
+	//char line[512] = {'\n'};
 	FILE *fd = fopen("/proc/net/wireless", "r");
 	if(fd == NULL)
 		{

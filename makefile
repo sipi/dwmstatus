@@ -7,7 +7,7 @@ LDFLAGS= -lX11 -lasound
 # Debug flags
 DEBUG_FLAGS= -DDEBUG=1 -W -Wall -ansi -pedantic -g
 # Other flags
-FLAGS= -std=c99
+FLAGS= -std=c99 -Wall
 
 include config.mk
 #INCLUDE_DIR=include
