@@ -26,13 +26,14 @@
 #define BAR_HEIGHT 15
 #define BAT_NOW_FILE "/sys/class/power_supply/BAT0/charge_now"
 #define BAT_FULL_FILE "/sys/class/power_supply/BAT0/charge_full"
+#define BAT_STATUS_FILE "/sys/class/power_supply/BAT0/status"
 
 #define TEMP_SENSOR_FILE "/sys/class/hwmon/hwmon1/temp1_input"
 
 int   getBattery();
+int   getBatteryStatus();
 void  getCpuUsage(int *cpu_percent);
 char* getDateTime();
-int   getEnergyStatus();
 float getFreq(char *file);
 int   getTemperature();
 int   getVolume();
@@ -42,7 +43,7 @@ int   getWifiPercent();
 char* vBar(int percent, int w, int h, char* fg_color, char* bg_color);
 int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color);
 int hBarBordered(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color, char *border_color);
-int getBatteryBar(char *string, size_t size, int w, int h, char *fg_color, char *bg_color, char *border_color);
+int getBatteryBar(char *string, size_t size, int w, int h);
 
 
 /* *******************************************************************
@@ -62,7 +63,6 @@ main(void)
   char *cpu_bar[CPU_NBR];
 
   char *fg_color = "#EEEEEE";
-  char *bg_color = "#222222";
 
   char bat0[256];
   
@@ -82,7 +82,7 @@ main(void)
       
       temp = getTemperature();
       datetime = getDateTime();
-      getBatteryBar(bat0, 256, 30, 13, "#00FF00", "#444444", "#FFFFFF");
+      getBatteryBar(bat0, 256, 30, 11);
       vol = getVolume();
       getCpuUsage(cpu_percent);
       wifi = getWifiPercent();
@@ -93,7 +93,7 @@ main(void)
                status, 
                MSIZE, 
                "^c%s^ [VOL %d%%] [CPU^f1^%s^f4^%s^f4^%s^f4^%s^f3^^c%s^] [W %d] [TEMP %d%cC] %s^c%s^ %s ", 
-               fg_color,
+             fg_color,
                vol, 
                cpu_bar[0],
                cpu_bar[1],  
@@ -149,7 +149,7 @@ int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, c
   int bar_width = (percent*w)/100;
 
   int y = (BAR_HEIGHT - h)/2;
-  return snprintf(string, size, format, bg_color, y, w, h, fg_color, w - bar_width, y, bar_width, h);
+  return snprintf(string, size, format, fg_color, y, bar_width, h, bg_color, bar_width, y, w - bar_width, h);
 }
 
 int hBarBordered(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color, char *border_color)
@@ -168,15 +168,32 @@ setStatus(Display *dpy, char *str)
   XSync(dpy, False);
 }
 
-int getBatteryBar(char *string, size_t size, int w, int h, char *fg_color, char *bg_color, char *border_color) 
+void percentColor(char* string, int percent)
 {
-	int percent = getBattery();
-	char tmp[128];
-	hBarBordered(tmp, 128, percent, w -2, h, fg_color, bg_color, border_color);
+	char *format = "#%X0%X000";
+	int g = (percent*15)/100;
+	int r = 15 - g;
+	snprintf(string, 8, format, r, g);
+}
 
-  char *format = "^c%s^^r0,%d,%d,%d^^f2^%s^f%d^";
+int getBatteryBar(char *string, size_t size, int w, int h) 
+{
+  int percent = getBattery();
+  
+  char *bg_color = "#444444";
+  char *border_color = "#EEEEEE";
+  char fg_color[8];
+  if(getBatteryStatus())
+	  memcpy(fg_color, border_color, 8);
+  else
+	  percentColor(fg_color, percent);
+
+  char tmp[128];
+  hBarBordered(tmp, 128, percent, w -2, h, fg_color, bg_color, border_color);
+
+  char *format = "%s^c%s^^f%d^^r0,%d,%d,%d^^f%d^";
   int y = (BAR_HEIGHT - 5)/2;
-  return snprintf(string, size, format, border_color, y, 2, 5, tmp, w-2);
+  return snprintf(string, size, format, tmp, border_color, w - 2, y, 2, 5, 2);
 }
 
 int 
@@ -206,6 +223,28 @@ getBattery()
   fclose(fd);
   
   return ((float)energy_now  / (float)energy_full) * 100;
+}
+
+/** 
+ * Return 0 if the battery is discharing, 1 if it's full or is 
+ * charging, -1 if an error occured. 
+ **/
+int 
+getBatteryStatus()
+{
+  FILE *fd;
+  char first_letter;
+  
+  if( NULL == (fd = fopen(BAT_STATUS_FILE, "r")))
+    return -1;
+
+  fread(&first_letter, sizeof(char), 1, fd);
+  fclose(fd);
+
+  if(first_letter == 'D')
+    return 0;
+
+  return 1;
 }
 
 void
@@ -313,29 +352,6 @@ getDateTime()
     }
 	
   return buf;
-}
-
-/** 
- * Return 0 if the battery is discharing, 1 if it's full or is 
- * charging, -1 if an error occured. 
- **/
-int 
-getEnergyStatus()
-{
-  FILE *fd;
-  char first_letter;
-  char file_path[] = "/sys/class/power_supply/BAT0/status";
-  
-  if( NULL == (fd = fopen(file_path, "r")))
-    return -1;
-
-  fread(&first_letter, sizeof(char), 1, fd);
-  fclose(fd);
-
-  if(first_letter == 'D')
-    return 0;
-
-  return 1;
 }
 
 int
