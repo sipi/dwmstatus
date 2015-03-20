@@ -44,6 +44,7 @@ char* vBar(int percent, int w, int h, char* fg_color, char* bg_color);
 int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color);
 int hBarBordered(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color, char *border_color);
 int getBatteryBar(char *string, size_t size, int w, int h);
+void percentColorGeneric(char* string, int percent, int invert);
 
 
 /* *******************************************************************
@@ -63,6 +64,7 @@ main(void)
   char *cpu_bar[CPU_NBR];
 
   char *fg_color = "#EEEEEE";
+  char cpu_color[8];
 
   char bat0[256];
   
@@ -87,7 +89,10 @@ main(void)
       getCpuUsage(cpu_percent);
       wifi = getWifiPercent();
       for(int i = 0; i < CPU_NBR; ++i)
-	      cpu_bar[i] = vBar(cpu_percent[i], 2, 13, "#FF0000", "#444444");
+      {
+        percentColorGeneric(cpu_color, cpu_percent[i], 1);
+	      cpu_bar[i] = vBar(cpu_percent[i], 2, 13, cpu_color, "#444444");
+      }
       
       int ret = snprintf(
                status, 
@@ -168,12 +173,22 @@ setStatus(Display *dpy, char *str)
   XSync(dpy, False);
 }
 
-void percentColor(char* string, int percent)
+void percentColorGeneric(char* string, int percent, int invert)
 {
 	char *format = "#%X0%X000";
-	int g = (percent*15)/100;
-	int r = 15 - g;
-	snprintf(string, 8, format, r, g);
+	int a = (percent*15)/100;
+	int b = 15 - a;
+  if(!invert) {
+    snprintf(string, 8, format, b, a);
+  }
+  else {
+    snprintf(string, 8, format, a, b);
+  }
+}
+
+void percentColor(char* string, int percent)
+{
+  percentColorGeneric(string, percent, 0);
 }
 
 int getBatteryBar(char *string, size_t size, int w, int h) 
