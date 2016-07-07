@@ -29,9 +29,11 @@
 #define BAT_STATUS_FILE "/sys/class/power_supply/BAT0/status"
 
 #define TEMP_SENSOR_FILE "/sys/class/hwmon/hwmon1/temp1_input"
+#define MEMINFO_FILE "/proc/meminfo"
 
 int   getBattery();
 int   getBatteryStatus();
+int   getMemPercent();
 void  getCpuUsage(int *cpu_percent);
 char* getDateTime();
 float getFreq(char *file);
@@ -41,7 +43,8 @@ void  setStatus(Display *dpy, char *str);
 int   getWifiPercent();
 
 char* vBar(int percent, int w, int h, char* fg_color, char* bg_color);
-int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color);
+char* hBar(int percent, int w, int h, char* fg_color, char* bg_color);
+int h2Bar(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color);
 int hBarBordered(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color, char *border_color);
 int getBatteryBar(char *string, size_t size, int w, int h);
 
@@ -62,6 +65,9 @@ main(void)
   int temp, vol, wifi;
   char *cpu_bar[CPU_NBR];
 
+  int mem_percent;
+  char *mem_bar;
+
   char *fg_color = "#EEEEEE";
 
   char bat0[256];
@@ -79,7 +85,9 @@ main(void)
 
    while(1)
     {
-      
+
+	  mem_percent = getMemPercent();
+	  mem_bar = hBar(mem_percent, 20, 9,  "#FF0000", "#444444");
       temp = getTemperature();
       datetime = getDateTime();
       getBatteryBar(bat0, 256, 30, 11);
@@ -88,17 +96,21 @@ main(void)
       wifi = getWifiPercent();
       for(int i = 0; i < CPU_NBR; ++i)
 	      cpu_bar[i] = vBar(cpu_percent[i], 2, 13, "#FF0000", "#444444");
+
+      
       
       int ret = snprintf(
                status, 
                MSIZE, 
-               "^c%s^ [VOL %d%%] [CPU^f1^%s^f4^%s^f4^%s^f4^%s^f3^^c%s^] [W %d] [TEMP %d%cC] %s^c%s^ %s ", 
+               "^c%s^ [VOL %d%%] [CPU^f1^%s^f4^%s^f4^%s^f4^%s^f3^^c%s^] [MEM^f1^%s^f20^^c%s^] [W %d] [TEMP %d%cC] %s^c%s^ %s ", 
              fg_color,
                vol, 
                cpu_bar[0],
                cpu_bar[1],  
                cpu_bar[2],  
-               cpu_bar[3],  
+               cpu_bar[3],
+               fg_color,
+               mem_bar,
                fg_color,
                wifi,
                temp, CELSIUS_CHAR, 
@@ -110,6 +122,8 @@ main(void)
       free(datetime);
       for(int i = 0; i < CPU_NBR; ++i)
 	      free(cpu_bar[i]);
+
+      free(mem_bar);
 
       setStatus(dpy, status);
       sleep(1);
@@ -143,7 +157,23 @@ char* vBar(int percent, int w, int h, char* fg_color, char* bg_color)
   return value; 
 }
 
-int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color)
+char* hBar(int percent, int w, int h, char* fg_color, char* bg_color) 
+{
+  char *value;
+  if((value = (char*) malloc(sizeof(char)*128)) == NULL)
+    {
+      fprintf(stderr, "Cannot allocate memory for buf.\n");
+      exit(1);
+    }
+  char* format = "^c%s^^r0,%d,%d,%d^^c%s^^r0,%d,%d,%d^";
+
+  int bar_width = (percent*w)/100;
+  int y = (BAR_HEIGHT - h)/2;
+  snprintf(value, 128, format, bg_color, y, w, h, fg_color, y, bar_width, h);
+  return value; 
+}
+
+int hBar2(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color)
 {
   char *format = "^c%s^^r0,%d,%d,%d^^c%s^^r%d,%d,%d,%d^";
   int bar_width = (percent*w)/100;
@@ -155,7 +185,7 @@ int hBar(char *string, size_t size, int percent, int w, int h, char *fg_color, c
 int hBarBordered(char *string, size_t size, int percent, int w, int h, char *fg_color, char *bg_color, char *border_color)
 {
 	char tmp[128];
-	hBar(tmp, 128, percent, w - 2, h -2, fg_color, bg_color);
+	hBar2(tmp, 128, percent, w - 2, h -2, fg_color, bg_color);
 	int y = (BAR_HEIGHT - h)/2;
 	char *format = "^c%s^^r0,%d,%d,%d^^f1^%s";
 	return snprintf(string, size, format, border_color, y, w, h, tmp);
@@ -246,6 +276,24 @@ getBatteryStatus()
 
   return 1;
 }
+
+int
+getMemPercent()
+{
+	FILE *fd;
+	int mem_total;
+	int mem_free;
+	int mem_available;
+	fd = fopen(MEMINFO_FILE, "r");
+	if(fd == NULL) {
+		fprintf(stderr, "Error opening energy_full.\n");
+        return -1;
+	}
+	fscanf(fd, "MemTotal:%*[ ]%d kB\nMemFree:%*[ ]%d kB\nMemAvailable:%*[ ]%d", &mem_total, &mem_free, &mem_available);
+	fclose (fd);
+	return ((float)(mem_total-mem_available)/(float)mem_total) * 100;
+}
+
 
 void
 getCpuUsage(int* cpu_percent)
